@@ -525,7 +525,7 @@ function renderItemDayTable(fs){
   });
   var h = '<tr><th>Article</th>';
   for (var b=0;b<NBUCKETS;b++) h += '<th class="num">'+BUCKET_LABELS[b]+'</th>';
-  h += '<th class="num">Total</th><th class="num">&gt;3 days cumulative %</th></tr>';
+  h += '<th class="num">Total</th><th class="num">Day 3+ cumulative %</th></tr>';
   for (var r=0;r<rows.length;r++){
     var nm = rows[r][0], cnts = rows[r][1];
     var tot = 0;
@@ -766,7 +766,7 @@ function csvTable(kind){
       for (var i3=0;i3<NBUCKETS;i3++){ tx += x[1][i3]; ty += y[1][i3]; }
       return ty - tx || (x[0] < y[0] ? -1 : 1);
     });
-    lines.push(['Article'].concat(BUCKET_LABELS.slice()).concat(['Total','More than 3 days cumulative %']).map(csvCell).join(','));
+    lines.push(['Article'].concat(BUCKET_LABELS.slice()).concat(['Total','Day 3+ cumulative %']).map(csvCell).join(','));
     for (i=0;i<rows2.length;i++){
       var tot4 = 0;
       for (j=0;j<NBUCKETS;j++) tot4 += rows2[i][1][j];
