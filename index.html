@@ -159,6 +159,12 @@ footer{margin-top:20px;font-size:11.5px;color:var(--ink-3)}
   <div id="itemList" class="pill-row"></div>
 </div>
 
+<div class="card">
+  <h2>Top articles by IGCC claims (day-wise)</h2>
+  <p class="hint">Top 15 articles by claim count in the selected scope, split by claim date. Sorted by total.</p>
+  <table id="itemDayTable"></table>
+</div>
+
 <footer>Day number = gap + 1: Day 1 means the claim happened on the same day (gap 0), Day 2 means one day later (gap 1), and so on. Day 1 is split in two: with dates = same-day gap computed from packaging or picking date; no dates = computed only from the claim-to-order gap because packaging and picking dates were missing. Gap priority: packaging date, then picking date, then claim-to-order. Claims with no computable gap form the No dates bucket. Negative gaps and outliers above 30 days are excluded from gap buckets and count as No dates.</footer>
 </div>
 
@@ -346,6 +352,7 @@ function render(){
   renderTierStack(a);
   renderCityTable(a);
   renderItems(a);
+  renderItemDayTable(fs);
   renderWindow(fs, a);
 }
 
@@ -489,6 +496,51 @@ function renderItems(a){
   var h = '';
   for (var i=0;i<rows.length;i++) h += '<span class="pill">'+esc(rows[i][0])+' ('+fmt(rows[i][1])+')</span>';
   e.innerHTML = h;
+}
+
+/* ---- Top articles by IGCC claims, day-wise bifurcation ---- */
+function renderItemDayTable(fs){
+  var t = el('itemDayTable');
+  /* dates in scope, in order */
+  var dates = [];
+  for (var i=0;i<D.dates.length;i++){ if (inDate(D.dates[i])) dates.push(D.dates[i]); }
+  if (!dates.length){ t.innerHTML = '<tr><td class="empty">No claims in scope</td></tr>'; return; }
+  /* per item: total + per-date counts */
+  var byItem = {}, order = [];
+  for (var j=0;j<fs.length;j++){
+    var f = fs[j], n = f[8], name = D.items[f[4]];
+    if (!byItem[name]){ byItem[name] = { tot:0, per:{} }; order.push(name); }
+    byItem[name].tot += n;
+    byItem[name].per[D.dates[f[0]]] = (byItem[name].per[D.dates[f[0]]] || 0) + n;
+  }
+  if (!order.length){ t.innerHTML = '<tr><td class="empty">No claims in scope</td></tr>'; return; }
+  order.sort(function(x,y){ return byItem[y].tot - byItem[x].tot; });
+  var top = order.slice(0,15);
+  var maxTot = byItem[top[0]].tot || 1;
+  var h = '<tr><th>Article</th>';
+  for (var d=0; d<dates.length; d++) h += '<th class="num">'+dates[d].slice(5)+'</th>';
+  h += '<th class="num">Total</th><th style="width:18%"></th></tr>';
+  for (var r=0; r<top.length; r++){
+    var it = byItem[top[r]];
+    h += '<tr><td class="name">'+esc(top[r])+'</td>';
+    for (d=0; d<dates.length; d++){
+      var v = it.per[dates[d]] || 0;
+      h += '<td class="num'+(v ? '' : ' pct')+'">'+(v ? fmt(v) : '-')+'</td>';
+    }
+    h += '<td class="num"><b>'+fmt(it.tot)+'</b></td>';
+    h += '<td><div class="barwrap"><div class="bar g0" style="width:'+(it.tot/maxTot*100)+'%"></div></div></td></tr>';
+  }
+  /* totals row */
+  h += '<tr><td class="name"><b>All articles</b></td>';
+  var grand = 0;
+  for (d=0; d<dates.length; d++){
+    var dv = 0;
+    for (r=0; r<top.length; r++) dv += byItem[top[r]].per[dates[d]] || 0;
+    grand += dv;
+    h += '<td class="num pct"><b>'+fmt(dv)+'</b></td>';
+  }
+  h += '<td class="num"><b>'+fmt(grand)+'</b></td><td></td></tr>';
+  t.innerHTML = h;
 }
 
 /* ---- IGCC window: order date vs packaging, picking, claim dates ---- */
@@ -659,7 +711,7 @@ renderChips();
 render();
 
 if (typeof window !== 'undefined'){
-  window.__test = { state: state, render: render, applyDate: applyDate, presetLast7: presetLast7, presetAll: presetAll, resetAll: resetAll, computeAgg: computeAgg, currentFacts: currentFacts, bucketOf: bucketOf, buildCsv: buildCsv, D: D };
+  window.__test = { state: state, render: render, applyDate: applyDate, presetLast7: presetLast7, presetAll: presetAll, resetAll: resetAll, computeAgg: computeAgg, currentFacts: currentFacts, bucketOf: bucketOf, buildCsv: buildCsv, renderItemDayTable: renderItemDayTable, D: D };
 }
 })();
 </script>
