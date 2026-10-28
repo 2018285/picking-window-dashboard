@@ -530,7 +530,7 @@ function renderItemDayTable(fs){
     var nm = rows[r][0], cnts = rows[r][1];
     var tot = 0;
     for (b=0;b<NBUCKETS;b++) tot += cnts[b];
-    var p3 = tot ? (cnts[4]+cnts[5])/tot*100 : 0;
+    var p3 = tot ? (cnts[3]+cnts[4]+cnts[5])/tot*100 : 0;
     h += '<tr><td class="name">'+esc(nm)+'</td>';
     for (b=0;b<NBUCKETS;b++){
       var v = cnts[b];
@@ -541,7 +541,7 @@ function renderItemDayTable(fs){
     h += '<td class="num"><b>'+fmt(tot)+'</b></td><td class="num"><span class="badge '+(p3 > 20 ? 'badb' : (p3 > 5 ? 'warnb' : 'ok'))+'">'+p3.toFixed(1)+'%</span></td></tr>';
   }
   /* totals row */
-  var grandP3 = grand ? (grandByBucket[4]+grandByBucket[5])/grand*100 : 0;
+  var grandP3 = grand ? (grandByBucket[3]+grandByBucket[4]+grandByBucket[5])/grand*100 : 0;
   h += '<tr><td class="name"><b>Total claims</b></td>';
   for (b=0;b<NBUCKETS;b++){
     var cls2 = (b === 4 || b === 5) ? 'badb' : (b === 3 ? 'warnb' : (b === 6 ? 'nob' : 'ok'));
