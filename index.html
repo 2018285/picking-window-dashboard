@@ -160,8 +160,8 @@ footer{margin-top:20px;font-size:11.5px;color:var(--ink-3)}
 </div>
 
 <div class="card">
-  <h2>Top articles by IGCC claims (day-wise)</h2>
-  <p class="hint">Top 15 articles by claim count in the selected scope, split by claim date. Sorted by total.</p>
+  <h2>Day-wise gap windows (IGCC count and share)</h2>
+  <p class="hint">Each selected date gets its own column: gap-window claim counts with % share of that day's total. Works for single or multiple selected dates.</p>
   <table id="itemDayTable"></table>
 </div>
 
@@ -498,48 +498,51 @@ function renderItems(a){
   e.innerHTML = h;
 }
 
-/* ---- Top articles by IGCC claims, day-wise bifurcation ---- */
+/* ---- Day-wise gap windows: rows = 7 buckets, columns = selected dates ---- */
 function renderItemDayTable(fs){
   var t = el('itemDayTable');
-  /* dates in scope, in order */
   var dates = [];
   for (var i=0;i<D.dates.length;i++){ if (inDate(D.dates[i])) dates.push(D.dates[i]); }
   if (!dates.length){ t.innerHTML = '<tr><td class="empty">No claims in scope</td></tr>'; return; }
-  /* per item: total + per-date counts */
-  var byItem = {}, order = [];
-  for (var j=0;j<fs.length;j++){
-    var f = fs[j], n = f[8], name = D.items[f[4]];
-    if (!byItem[name]){ byItem[name] = { tot:0, per:{} }; order.push(name); }
-    byItem[name].tot += n;
-    byItem[name].per[D.dates[f[0]]] = (byItem[name].per[D.dates[f[0]]] || 0) + n;
+  var dateIdxs = [];
+  for (i=0;i<dates.length;i++){
+    for (var k=0;k<D.dates.length;k++) if (D.dates[k] === dates[i]) dateIdxs.push(k);
   }
-  if (!order.length){ t.innerHTML = '<tr><td class="empty">No claims in scope</td></tr>'; return; }
-  order.sort(function(x,y){ return byItem[y].tot - byItem[x].tot; });
-  var top = order.slice(0,15);
-  var maxTot = byItem[top[0]].tot || 1;
-  var h = '<tr><th>Article</th>';
-  for (var d=0; d<dates.length; d++) h += '<th class="num">'+dates[d].slice(5)+'</th>';
-  h += '<th class="num">Total</th><th style="width:18%"></th></tr>';
-  for (var r=0; r<top.length; r++){
-    var it = byItem[top[r]];
-    h += '<tr><td class="name">'+esc(top[r])+'</td>';
-    for (d=0; d<dates.length; d++){
-      var v = it.per[dates[d]] || 0;
-      h += '<td class="num'+(v ? '' : ' pct')+'">'+(v ? fmt(v) : '-')+'</td>';
+  /* per bucket per date counts */
+  var cnt = []; /* cnt[bucket][col] */
+  for (var b=0; b<NBUCKETS; b++){ cnt.push([]); for (var c2=0; c2<dates.length; c2++) cnt[b].push(0); }
+  for (var j=0;j<fs.length;j++){
+    var f = fs[j], n = f[8];
+    var col = dateIdxs.indexOf(f[0]);
+    if (col < 0) continue;
+    var bk = bucketOf(f[5], f[6], f[7]);
+    if (bk < 0) bk = 6;
+    cnt[bk][col] += n;
+  }
+  /* header */
+  var h = '<tr><th>Gap window</th>';
+  for (c2=0; c2<dates.length; c2++) h += '<th class="num">'+dates[c2].slice(5)+'</th>';
+  h += '<th class="num">Total</th></tr>';
+  var grandByCol = [];
+  for (c2=0; c2<dates.length; c2++){ var s=0; for (b=0;b<NBUCKETS;b++) s += cnt[b][c2]; grandByCol.push(s); }
+  for (b=0; b<NBUCKETS; b++){
+    var cls = (b === 4 || b === 5) ? 'badb' : (b === 3 ? 'warnb' : (b === 6 ? 'nob' : 'ok'));
+    h += '<tr><td class="name">'+BUCKET_LABELS[b]+'</td>';
+    var bTot = 0;
+    for (c2=0; c2<dates.length; c2++){
+      var v = cnt[b][c2];
+      bTot += v;
+      var p = grandByCol[c2] ? (v/grandByCol[c2]*100) : 0;
+      h += '<td class="num">'+fmt(v)+(grandByCol[c2] ? ' <span class="badge '+cls+'">'+p.toFixed(1)+'%</span>' : '')+'</td>';
     }
-    h += '<td class="num"><b>'+fmt(it.tot)+'</b></td>';
-    h += '<td><div class="barwrap"><div class="bar g0" style="width:'+(it.tot/maxTot*100)+'%"></div></div></td></tr>';
+    var bp = 0; for (c2=0;c2<dates.length;c2++) bp += grandByCol[c2];
+    h += '<td class="num"><b>'+fmt(bTot)+(bp ? ' <span class="badge '+cls+'">'+(bTot/bp*100).toFixed(1)+'%</span>' : '')+'</b></td></tr>';
   }
   /* totals row */
-  h += '<tr><td class="name"><b>All articles</b></td>';
+  h += '<tr><td class="name"><b>Total claims</b></td>';
   var grand = 0;
-  for (d=0; d<dates.length; d++){
-    var dv = 0;
-    for (r=0; r<top.length; r++) dv += byItem[top[r]].per[dates[d]] || 0;
-    grand += dv;
-    h += '<td class="num pct"><b>'+fmt(dv)+'</b></td>';
-  }
-  h += '<td class="num"><b>'+fmt(grand)+'</b></td><td></td></tr>';
+  for (c2=0; c2<dates.length; c2++){ grand += grandByCol[c2]; h += '<td class="num"><b>'+fmt(grandByCol[c2])+'</b></td>'; }
+  h += '<td class="num"><b>'+fmt(grand)+'</b></td></tr>';
   t.innerHTML = h;
 }
 
