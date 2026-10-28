@@ -77,7 +77,7 @@ footer{margin-top:20px;font-size:11.5px;color:var(--ink-3)}
 <div class="wrap">
 <header>
   <h1>IGCC Claims - Packing to Claim Gap Dashboard</h1>
-  <p id="hdr-src">Source: IGCC_PICK_RAW_2026-10-27.csv + accumulated history (updated 2026-10-27) - Fruits and Vegetables</p>
+  <p id="hdr-src">Source: IGCC_PICK_RAW_2026-10-27.csv + accumulated history (updated 2026-10-28) - Fruits and Vegetables</p>
 </header>
 
 <div class="fbar">
@@ -160,8 +160,8 @@ footer{margin-top:20px;font-size:11.5px;color:var(--ink-3)}
 </div>
 
 <div class="card">
-  <h2>Day-wise gap windows (IGCC count and share)</h2>
-  <p class="hint">Each selected date gets its own column: gap-window claim counts with % share of that day's total. Works for single or multiple selected dates.</p>
+  <h2>Article-wise gap windows (IGCC count and share)</h2>
+  <p class="hint">Each article (item) is a row: cumulative claim counts across all selected dates per gap window, with % share of the article's total. Sorted by total claims.</p>
   <table id="itemDayTable"></table>
 </div>
 
@@ -498,50 +498,56 @@ function renderItems(a){
   e.innerHTML = h;
 }
 
-/* ---- Day-wise gap windows: rows = 7 buckets, columns = selected dates ---- */
+/* ---- Article-wise gap windows: rows = articles, columns = 7 gap buckets,
+   cells = cumulative counts across all selected dates ---- */
 function renderItemDayTable(fs){
   var t = el('itemDayTable');
-  var dates = [];
-  for (var i=0;i<D.dates.length;i++){ if (inDate(D.dates[i])) dates.push(D.dates[i]); }
-  if (!dates.length){ t.innerHTML = '<tr><td class="empty">No claims in scope</td></tr>'; return; }
-  var dateIdxs = [];
-  for (i=0;i<dates.length;i++){
-    for (var k=0;k<D.dates.length;k++) if (D.dates[k] === dates[i]) dateIdxs.push(k);
-  }
-  /* per bucket per date counts */
-  var cnt = []; /* cnt[bucket][col] */
-  for (var b=0; b<NBUCKETS; b++){ cnt.push([]); for (var c2=0; c2<dates.length; c2++) cnt[b].push(0); }
+  /* per article: 7 bucket counts, cumulative over selected dates */
+  var byItem = {};
+  var grandByBucket = [0,0,0,0,0,0,0];
+  var grand = 0;
   for (var j=0;j<fs.length;j++){
     var f = fs[j], n = f[8];
-    var col = dateIdxs.indexOf(f[0]);
-    if (col < 0) continue;
+    if (!inDate(D.dates[f[0]])) continue;
     var bk = bucketOf(f[5], f[6], f[7]);
     if (bk < 0) bk = 6;
-    cnt[bk][col] += n;
+    var name = D.items[f[4]];
+    if (!byItem[name]) byItem[name] = [0,0,0,0,0,0,0];
+    byItem[name][bk] += n;
+    grandByBucket[bk] += n;
+    grand += n;
   }
-  /* header */
-  var h = '<tr><th>Gap window</th>';
-  for (c2=0; c2<dates.length; c2++) h += '<th class="num">'+dates[c2].slice(5)+'</th>';
+  if (!grand){ t.innerHTML = '<tr><td class="empty">No claims in scope</td></tr>'; return; }
+  /* rows sorted by total claims, highest first */
+  var rows = [];
+  for (var name2 in byItem) if (byItem.hasOwnProperty(name2)) rows.push([name2, byItem[name2]]);
+  rows.sort(function(x,y){
+    var tx=0, ty=0;
+    for (var i2=0;i2<NBUCKETS;i2++){ tx += x[1][i2]; ty += y[1][i2]; }
+    return ty - tx || (x[0] < y[0] ? -1 : 1);
+  });
+  var h = '<tr><th>Article</th>';
+  for (var b=0;b<NBUCKETS;b++) h += '<th class="num">'+BUCKET_LABELS[b]+'</th>';
   h += '<th class="num">Total</th></tr>';
-  var grandByCol = [];
-  for (c2=0; c2<dates.length; c2++){ var s=0; for (b=0;b<NBUCKETS;b++) s += cnt[b][c2]; grandByCol.push(s); }
-  for (b=0; b<NBUCKETS; b++){
-    var cls = (b === 4 || b === 5) ? 'badb' : (b === 3 ? 'warnb' : (b === 6 ? 'nob' : 'ok'));
-    h += '<tr><td class="name">'+BUCKET_LABELS[b]+'</td>';
-    var bTot = 0;
-    for (c2=0; c2<dates.length; c2++){
-      var v = cnt[b][c2];
-      bTot += v;
-      var p = grandByCol[c2] ? (v/grandByCol[c2]*100) : 0;
-      h += '<td class="num">'+fmt(v)+(grandByCol[c2] ? ' <span class="badge '+cls+'">'+p.toFixed(1)+'%</span>' : '')+'</td>';
+  for (var r=0;r<rows.length;r++){
+    var nm = rows[r][0], cnts = rows[r][1];
+    var tot = 0;
+    for (b=0;b<NBUCKETS;b++) tot += cnts[b];
+    h += '<tr><td class="name">'+esc(nm)+'</td>';
+    for (b=0;b<NBUCKETS;b++){
+      var v = cnts[b];
+      var cls = (b === 4 || b === 5) ? 'badb' : (b === 3 ? 'warnb' : (b === 6 ? 'nob' : 'ok'));
+      var p = tot ? (v/tot*100) : 0;
+      h += '<td class="num">'+fmt(v)+(v ? ' <span class="badge '+cls+'">'+p.toFixed(1)+'%</span>' : '')+'</td>';
     }
-    var bp = 0; for (c2=0;c2<dates.length;c2++) bp += grandByCol[c2];
-    h += '<td class="num"><b>'+fmt(bTot)+(bp ? ' <span class="badge '+cls+'">'+(bTot/bp*100).toFixed(1)+'%</span>' : '')+'</b></td></tr>';
+    h += '<td class="num"><b>'+fmt(tot)+'</b></td></tr>';
   }
   /* totals row */
   h += '<tr><td class="name"><b>Total claims</b></td>';
-  var grand = 0;
-  for (c2=0; c2<dates.length; c2++){ grand += grandByCol[c2]; h += '<td class="num"><b>'+fmt(grandByCol[c2])+'</b></td>'; }
+  for (b=0;b<NBUCKETS;b++){
+    var cls2 = (b === 4 || b === 5) ? 'badb' : (b === 3 ? 'warnb' : (b === 6 ? 'nob' : 'ok'));
+    h += '<td class="num"><b>'+fmt(grandByBucket[b])+(grand ? ' <span class="badge '+cls2+'">'+(grandByBucket[b]/grand*100).toFixed(1)+'%</span>' : '')+'</b></td>';
+  }
   h += '<td class="num"><b>'+fmt(grand)+'</b></td></tr>';
   t.innerHTML = h;
 }
